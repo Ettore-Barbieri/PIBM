@@ -6,7 +6,7 @@ This file explains how to run the Phytoplankton Individual-Based Model (PIBM) 1.
 
 The model output has been compared and validated against the observations at the Bermuda Atlantic Time-series Study (BATS) station.
 
-The published paper describing the model has been accepted by [Geoscientific Model Development](https://gmd.copernicus.org/preprints/gmd-2024-130/).
+The published paper describing the model has been published by [Geoscientific Model Development](https://gmd.copernicus.org/articles/18/4155/2025/).
 
 ## Authors
 Bingzhang Chen, Iria Sala.
