@@ -38,9 +38,27 @@ flags into `src/Makefile`, build, move the executable up) but:
 |---|---|
 | `mpiifort` | `mpif90` (gfortran) |
 | `-r8 -i4` | `-fdefault-real-8 -fdefault-double-8` |
-| `-xHost` | `-mcpu=native` |
+| `-xHost` | `-mcpu=native` (arm64) / `-march=native` (x86_64), auto-detected |
 | `module load netcdf/...`, hard-coded paths | `nf-config` / `nc-config` |
 | explicit `-L$MPIDIR/lib -lmpi` | handled by the `mpif90` wrapper |
+
+### Moving to another Mac
+
+The scripts are self-contained; nothing is hard-coded to a particular machine.
+
+```bash
+git clone https://github.com/Ettore-Barbieri/PIBM.git
+cd PIBM && git checkout macos-port
+brew install gcc open-mpi netcdf netcdf-fortran
+./build-macos.sh Run_simple
+./run-macos.sh  Run_simple            # or: ./run-macos.sh Run_simple <nranks>
+```
+
+Both Apple Silicon and Intel Macs work: `build-macos.sh` picks `-mcpu=native`
+or `-march=native` from `uname -m`, and netCDF paths come from `nf-config` /
+`nc-config`, so the Homebrew prefix (`/opt/homebrew` vs `/usr/local`) does not
+matter. Rebuild on the target machine rather than copying the `IBM` binary —
+`-m*=native` bakes in CPU-specific instructions.
 
 **Important:** the build copies `src/*.f90` first, then the run directory's own
 `*.f90` on top. A run directory's `params.f90` / `variables.f90` therefore
@@ -89,8 +107,10 @@ cd Run_simple
 mpirun -np 4 ./IBM > out 2>&1
 ```
 
-`-np 4` is the sweet spot on an M2 (4 performance cores). Measured on the
-random-walk phase, which is the only MPI-parallel part:
+Match `-np` to the number of **performance** cores
+(`sysctl -n hw.perflevel0.logicalcpu`); on an Intel Mac use physical cores,
+`sysctl -n hw.physicalcpu`. Measured on an M2 (4 P-cores) for the random-walk
+phase, which is the only MPI-parallel part:
 
 | ranks | random walk |
 |---|---|
@@ -99,7 +119,14 @@ random-walk phase, which is the only MPI-parallel part:
 | 5 | 0.012 h (no gain, I/O worsens) |
 
 Everything else — biology, Eulerian physics, all netCDF I/O — runs on the
-master rank only, so total speedup is bounded well below 4×.
+master rank only, so total speedup is bounded well below the rank count. A
+machine with more cores will help less than you would expect; single-core
+speed and disk throughput matter more. OpenMPI also busy-waits, so idle ranks
+still burn 100% CPU — do not run two configurations concurrently.
+
+For reference, a full `NDay_Run = 2190` Run_simple took ~3 simulated days per
+minute at `-np 4` on an M2 (~12 h wall). BATS (`Model_ID = 8`) is slower still:
+its biology step measured ~5× the cost of `Model_ID = 1`.
 
 ## 6. Output, and a sizing trap
 

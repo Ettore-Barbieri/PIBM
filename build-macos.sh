@@ -43,7 +43,14 @@ if [ "$Test" = 1 ]; then
           -Wall -Wno-unused-dummy-argument -Wno-unused-variable -Wno-compare-reals"
 else
   echo "Building with OPTIMISED options..."
-  FFLAGS="-O3 -mcpu=native $REAL8"
+  # gfortran spells "tune for this CPU" differently per architecture:
+  # -mcpu=native on Apple Silicon (arm64), -march=native on Intel (x86_64).
+  case "$(uname -m)" in
+    arm64|aarch64) NATIVE="-mcpu=native" ;;
+    x86_64)        NATIVE="-march=native" ;;
+    *)             NATIVE="" ;;
+  esac
+  FFLAGS="-O3 $NATIVE $REAL8"
 fi
 # Some routines exceed the free-form 132-column default.
 FFLAGS="$FFLAGS -ffree-line-length-none"
