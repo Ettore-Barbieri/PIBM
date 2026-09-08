@@ -1,0 +1,16 @@
+# Build artefacts
+Compile/
+*.o
+*.mod
+IBM
+
+# Model output (multi-GB; ParY*.nc alone exceeds GitHub's 100 MB file limit)
+Euler.nc
+ParY*.nc
+PassY*.nc
+restart.nc
+out
+run.log
+
+# macOS
+.DS_Store
