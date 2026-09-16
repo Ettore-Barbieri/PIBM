@@ -614,9 +614,10 @@ character (len=*), intent(in) :: fname
 INTEGER, INTENT(IN)  :: rec  !The time index to be written
 INTEGER, INTENT(IN)  :: DOY 
 INTEGER, INTENT(IN)  :: hour
-INTEGER :: start(NDIM_PARTICLE)
 INTEGER :: ncid = 0
 INTEGER :: j = 0
+INTEGER :: iwrk(N_Pass)
+REAL    :: rwrk(N_Pass)
 
 ! These settings tell netcdf to write one timestep of data.
 
@@ -632,12 +633,21 @@ CALL check(NF90_INQ_VARID(ncid, hr_NAME, hr_varid))
 
 CALL check(NF90_PUT_VAR(ncid, DOY_varid, DOY, start=(/rec/))) !Add data into the nc file
 
+! Batched, as in write_PHY_particlefile; bytes written are unchanged.
 DO j = 1, N_Pass
-   start = (/j, rec/)
-   CALL check(NF90_PUT_VAR(ncid, ID_varid, p_Pass(j)%ID, start=start))
-   CALL check(NF90_PUT_VAR(ncid, IZ_varid, p_Pass(j)%iz, start=start))
-   CALL check(NF90_PUT_VAR(ncid, Z_varid,  p_Pass(j)%rz, start=start))
+   iwrk(j) = p_Pass(j)%ID
 ENDDO
+CALL check(NF90_PUT_VAR(ncid, ID_varid, iwrk, start=[1,rec], count=[N_Pass,1]))
+
+DO j = 1, N_Pass
+   iwrk(j) = p_Pass(j)%iz
+ENDDO
+CALL check(NF90_PUT_VAR(ncid, IZ_varid, iwrk, start=[1,rec], count=[N_Pass,1]))
+
+DO j = 1, N_Pass
+   rwrk(j) = p_Pass(j)%rz
+ENDDO
+CALL check(NF90_PUT_VAR(ncid, Z_varid, rwrk, start=[1,rec], count=[N_Pass,1]))
 
 ! Close the file. This causes netCDF to flush all buffers and make
 ! sure your data are really written to disk.
@@ -729,9 +739,10 @@ character (len=*), intent(in) :: fname
 INTEGER, INTENT(IN)  :: rec  !The time index to be written
 INTEGER, INTENT(IN)  :: DOY 
 INTEGER, INTENT(IN)  :: hour
-INTEGER :: start(NDIM_PARTICLE)
 INTEGER :: ncid
 INTEGER :: j = 0
+INTEGER :: iwrk(N_PAR)
+REAL    :: rwrk(N_PAR)
 
 ! These settings tell netcdf to write one timestep of data.
 
@@ -760,24 +771,85 @@ CALL check(NF90_INQ_VARID(ncid, fitness_NAME, fitness_varid))
 CALL check(NF90_PUT_VAR(ncid, DOY_varid, DOY, start=(/rec/))) !Add DOY  into the nc file
 CALL check(NF90_PUT_VAR(ncid,  hr_varid, hour,start=(/rec/))) !Add Hour into the nc file
 
+! Gather each field into a contiguous buffer and write the whole
+! (N_PAR x 1) slab in one call. This loop previously issued one
+! NF90_PUT_VAR per particle per variable -- 15*N_PAR calls per record --
+! which dominated total runtime. The bytes written are unchanged.
 DO j = 1, N_PAR
-   start = (/j, rec/)
-   CALL check(NF90_PUT_VAR(ncid, ID_varid,     p_PHY(j)%ID,         start=start))
-   CALL check(NF90_PUT_VAR(ncid, IZ_varid,     p_PHY(j)%iz,         start=start))
-   CALL check(NF90_PUT_VAR(ncid, Z_varid,      p_PHY(j)%rz,         start=start))
-   CALL check(NF90_PUT_VAR(ncid, p_PAR_varid,  p_PHY(j)%PAR,        start=start))
-   CALL check(NF90_PUT_VAR(ncid, p_temp_varid, p_PHY(j)%temp,       start=start))
-   CALL check(NF90_PUT_VAR(ncid, p_NO3_varid,  p_PHY(j)%NO3,        start=start))
-   CALL check(NF90_PUT_VAR(ncid, C_varid,      p_PHY(j)%C,          start=start))
-   CALL check(NF90_PUT_VAR(ncid, N_varid,      p_PHY(j)%N,          start=start))
-   CALL check(NF90_PUT_VAR(ncid, p_CHL_varid,  p_PHY(j)%CHL,        start=start))
-   CALL check(NF90_PUT_VAR(ncid, p_num_varid,  p_PHY(j)%num,        start=start))
-   CALL check(NF90_PUT_VAR(ncid, Topt_varid,   p_PHY(j)%Topt,       start=start))
-   CALL check(NF90_PUT_VAR(ncid, CDiv_varid,   p_PHY(j)%CDiv,       start=start))
-   CALL check(NF90_PUT_VAR(ncid, alpha_varid,  p_PHY(j)%LnalphaChl, start=start))
-   CALL check(NF90_PUT_VAR(ncid, muC_varid,    p_PHY(j)%mu_C,       start=start))
-   CALL check(NF90_PUT_VAR(ncid, fitness_varid,p_PHY(j)%fitness,    start=start))
+   iwrk(j) = p_PHY(j)%ID
 ENDDO
+CALL check(NF90_PUT_VAR(ncid, ID_varid, iwrk, start=[1,rec], count=[N_PAR,1]))
+
+DO j = 1, N_PAR
+   iwrk(j) = p_PHY(j)%iz
+ENDDO
+CALL check(NF90_PUT_VAR(ncid, IZ_varid, iwrk, start=[1,rec], count=[N_PAR,1]))
+
+DO j = 1, N_PAR
+   rwrk(j) = p_PHY(j)%rz
+ENDDO
+CALL check(NF90_PUT_VAR(ncid, Z_varid, rwrk, start=[1,rec], count=[N_PAR,1]))
+
+DO j = 1, N_PAR
+   rwrk(j) = p_PHY(j)%PAR
+ENDDO
+CALL check(NF90_PUT_VAR(ncid, p_PAR_varid, rwrk, start=[1,rec], count=[N_PAR,1]))
+
+DO j = 1, N_PAR
+   rwrk(j) = p_PHY(j)%temp
+ENDDO
+CALL check(NF90_PUT_VAR(ncid, p_temp_varid, rwrk, start=[1,rec], count=[N_PAR,1]))
+
+DO j = 1, N_PAR
+   rwrk(j) = p_PHY(j)%NO3
+ENDDO
+CALL check(NF90_PUT_VAR(ncid, p_NO3_varid, rwrk, start=[1,rec], count=[N_PAR,1]))
+
+DO j = 1, N_PAR
+   rwrk(j) = p_PHY(j)%C
+ENDDO
+CALL check(NF90_PUT_VAR(ncid, C_varid, rwrk, start=[1,rec], count=[N_PAR,1]))
+
+DO j = 1, N_PAR
+   rwrk(j) = p_PHY(j)%N
+ENDDO
+CALL check(NF90_PUT_VAR(ncid, N_varid, rwrk, start=[1,rec], count=[N_PAR,1]))
+
+DO j = 1, N_PAR
+   rwrk(j) = p_PHY(j)%CHL
+ENDDO
+CALL check(NF90_PUT_VAR(ncid, p_CHL_varid, rwrk, start=[1,rec], count=[N_PAR,1]))
+
+DO j = 1, N_PAR
+   rwrk(j) = p_PHY(j)%num
+ENDDO
+CALL check(NF90_PUT_VAR(ncid, p_num_varid, rwrk, start=[1,rec], count=[N_PAR,1]))
+
+DO j = 1, N_PAR
+   rwrk(j) = p_PHY(j)%Topt
+ENDDO
+CALL check(NF90_PUT_VAR(ncid, Topt_varid, rwrk, start=[1,rec], count=[N_PAR,1]))
+
+DO j = 1, N_PAR
+   rwrk(j) = p_PHY(j)%CDiv
+ENDDO
+CALL check(NF90_PUT_VAR(ncid, CDiv_varid, rwrk, start=[1,rec], count=[N_PAR,1]))
+
+DO j = 1, N_PAR
+   rwrk(j) = p_PHY(j)%LnalphaChl
+ENDDO
+CALL check(NF90_PUT_VAR(ncid, alpha_varid, rwrk, start=[1,rec], count=[N_PAR,1]))
+
+DO j = 1, N_PAR
+   rwrk(j) = p_PHY(j)%mu_C
+ENDDO
+CALL check(NF90_PUT_VAR(ncid, muC_varid, rwrk, start=[1,rec], count=[N_PAR,1]))
+
+DO j = 1, N_PAR
+   rwrk(j) = p_PHY(j)%fitness
+ENDDO
+CALL check(NF90_PUT_VAR(ncid, fitness_varid, rwrk, start=[1,rec], count=[N_PAR,1]))
+
 
 ! Close the file. This causes netCDF to flush all buffers and make
 ! sure your data are really written to disk.

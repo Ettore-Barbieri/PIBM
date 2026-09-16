@@ -154,7 +154,63 @@ Note this uses **integer division**. Any `NDay_Run < 365` gives `0`, so a short
 test run takes the *hourly* branch and writes ~24× more output than expected —
 worth knowing when you shorten `NDay_Run` to test something.
 
-## 7. Discrepancy in the README
+## 7. Performance changes
+
+Two hot spots were fixed. Both are pure restructuring: the arithmetic and the
+bytes written are unchanged, and output is **bit-identical** (verified — see
+below).
+
+**netCDF particle output (`netcdf_IO.f90`).** `write_PHY_particlefile` issued
+one `NF90_PUT_VAR` per particle *per variable* — 15 x 20 000 = 300 000 library
+calls for every saved record, each with its own bounds-checking and offset
+bookkeeping. `write_Pass_particlefile` did the same (3 x 1 000). Both now gather
+each field into a contiguous buffer and write the whole `(N x 1)` slab in a
+single call: **303 000 calls per record become 18**.
+
+**Grid-cell lookup (`lagrange.f90`).** The random walk located each particle's
+cell with a linear scan over all `nlev` levels, run *twice* per sub-step — with
+`Nrand = 200` and 21 000 particles that is ~840 million comparisons per
+biological timestep. `Z_w` is monotonic and a particle moves only a fraction of
+a cell per sub-step, so the search now starts from the cell the particle was
+already in and walks outward, which is O(1) in practice. It returns exactly the
+same index, including the tie-break to the lowest valid cell when a particle
+lands precisely on a cell face.
+
+Measured on 4 simulated days, `-np 4`, hourly particle output:
+
+| phase | before | after | speedup |
+|---|---|---|---|
+| saving data | 0.052 h | 0.002 h | 26x |
+| random walk | 0.015 h | 0.007 h | 2.1x |
+| biology | 0.001 h | 0.001 h | - |
+| **total wall** | **297 s** | **48 s** | **6.2x** |
+
+The gain is largest in the final year, which writes particles hourly and was
+overwhelmingly I/O-bound.
+
+### Verifying that results are unchanged
+
+`random_seed()` is called with no arguments (`Main.f90:20`), which seeds from OS
+entropy, so ordinary runs are not reproducible. To compare two builds, pin the
+seed in a *scratch copy* of the tree (do not commit it):
+
+```fortran
+block
+  integer :: sd_n
+  integer, allocatable :: sd(:)
+  call random_seed(size=sd_n)
+  allocate(sd(sd_n))
+  sd = 20260916
+  call random_seed(put=sd)
+end block
+```
+
+With that in place, two independent runs of the same build produce byte-for-byte
+identical `Euler.nc`, `ParY1.nc` and `PassY1.nc`, so `md5` on those files is a
+sound regression check. The optimisations above were confirmed identical this
+way against the unmodified upstream code.
+
+## 8. Discrepancy in the README
 
 `README.md` numbers the models differently from the code. `variables.f90` is
 authoritative:
@@ -169,7 +225,7 @@ authoritative:
 
 `Model_ID = 8` (`ToptSizeLight`) agrees in both, so the BATS run is unaffected.
 
-## 8. Verification performed
+## 9. Verification performed
 
 - Total nitrogen conserved exactly (431.6720 every day, both configurations).
 - Nitrate depleted at the surface, increasing with depth; Chl ≈ 0.15 mg m⁻³ —

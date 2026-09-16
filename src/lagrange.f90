@@ -124,13 +124,24 @@ DO j = (taskid*N_chunk + 1), ((taskid+1)*N_chunk)
         zloc = Z_w(0) + (Z_w(0) - zloc)
      endif      
      
-     ! The following is to find the index for the grid where the particle currently resides
-     do i = 1,nlev
-        if (Z_w(i) .ge. zloc .and. Z_w(i-1) .le. zloc) then
-            zi = i
-            EXIT
-        endif
-     end do   !End of diffusivity correction
+     ! Find the grid cell containing the particle. Z_w is monotonically
+     ! increasing and a particle moves only a small fraction of a cell per
+     ! sub-step, so search outwards from the cell it was in rather than
+     ! rescanning all nlev levels from the bottom. This returns exactly the
+     ! same index as the original linear scan, including the tie-break to
+     ! the lowest valid cell when zloc falls on a cell face.
+     if (zi < 1)    zi = 1
+     if (zi > nlev) zi = nlev
+     do while (zi > 1    .and. Z_w(zi-1) >  zloc)
+        zi = zi - 1
+     end do
+     do while (zi < nlev .and. Z_w(zi)   <  zloc)
+        zi = zi + 1
+     end do
+     do while (zi > 1    .and. Z_w(zi-1) >= zloc)
+        zi = zi - 1
+     end do
+     i = zi   !The code below indexes with i, which the old loop left equal to zi
     
      rat  = (zloc-Z_w(i-1))/Hz(i)
      visc = rat*Kv(i)+(1.-rat)*Kv(i-1)  ! interpolate Kv
@@ -153,13 +164,19 @@ DO j = (taskid*N_chunk + 1), ((taskid+1)*N_chunk)
            zp = Z_w(0) + (Z_w(0) - zp)
      ENDIF      
      
-     !Compute new zi
-     do i=1,nlev
-        if (Z_w(i) .ge. zp .and. Z_w(i-1) .le. zp) then
-            zi = i
-            EXIT
-        endif
+     !Compute new zi (local search, as above)
+     if (zi < 1)    zi = 1
+     if (zi > nlev) zi = nlev
+     do while (zi > 1    .and. Z_w(zi-1) >  zp)
+        zi = zi - 1
      end do
+     do while (zi < nlev .and. Z_w(zi)   <  zp)
+        zi = zi + 1
+     end do
+     do while (zi > 1    .and. Z_w(zi-1) >= zp)
+        zi = zi - 1
+     end do
+     i = zi
    enddo  !End of iit
 
    !Save zi and zp back to the particle
