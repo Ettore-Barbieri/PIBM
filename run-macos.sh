@@ -25,9 +25,16 @@ fi
 
 rm -f Euler.nc ParY*.nc PassY*.nc restart.nc
 echo "started $(date)  |  ${NP} ranks  |  $(grep -E 'NDay_Run' time.nml | tr -d ' ')"
+
+# Keep the machine awake for the whole run. Display sleep is harmless, but an
+# idle system sleep suspends the MPI ranks and the run simply stops advancing
+# until someone wakes the machine. caffeinate -i blocks idle sleep, -s blocks
+# system sleep while on mains power; both end when the run does.
+CAFF=""
+command -v caffeinate >/dev/null && CAFF="caffeinate -is"
 # Only the vertical random walk is MPI-parallel; biology, Eulerian physics and
 # all netCDF I/O run on the master rank. -np 4 saturates the M2 performance
 # cores -- more ranks do not help, and OpenMPI busy-waits, so do not run two
 # configurations at the same time.
-time mpirun -np "$NP" ./IBM > out 2>&1
+time $CAFF mpirun -np "$NP" ./IBM > out 2>&1
 echo "finished $(date)"
