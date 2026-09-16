@@ -10,7 +10,16 @@
 set -euo pipefail
 
 RUNDIR="${1:?usage: ./run-macos.sh <rundir> [nranks]}"
-NP="${2:-4}"
+# Default to the number of performance cores: only the random walk is
+# MPI-parallel, OpenMPI busy-waits, and the efficiency cores on Apple Silicon
+# would just hold the others up at each barrier.
+if [ -n "${2:-}" ]; then
+  NP="$2"
+else
+  NP="$(sysctl -n hw.perflevel0.logicalcpu 2>/dev/null || true)"
+  [ -z "$NP" ] && NP="$(sysctl -n hw.physicalcpu 2>/dev/null || true)"
+  [ -z "$NP" ] && NP=4
+fi
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT/$RUNDIR"
 
