@@ -124,9 +124,10 @@ machine with more cores will help less than you would expect; single-core
 speed and disk throughput matter more. OpenMPI also busy-waits, so idle ranks
 still burn 100% CPU — do not run two configurations concurrently.
 
-For reference, a full `NDay_Run = 2190` Run_simple took ~3 simulated days per
-minute at `-np 4` on an M2 (~12 h wall). BATS (`Model_ID = 8`) is slower still:
-its biology step measured ~5× the cost of `Model_ID = 1`.
+`run-macos.sh` now picks this number itself (`hw.perflevel0.logicalcpu`,
+falling back to `hw.physicalcpu`); pass a second argument to override it.
+
+Section 7 has measured timings for full-length runs of both configurations.
 
 ## 6. Output, and a sizing trap
 
@@ -187,6 +188,47 @@ Measured on 4 simulated days, `-np 4`, hourly particle output:
 
 The gain is largest in the final year, which writes particles hourly and was
 overwhelmingly I/O-bound.
+
+### Production timings
+
+Full `NDay_Run = 2190` (six-year) runs of both configurations with the
+optimised code, on a Mac Studio with 12 performance cores:
+
+| phase | `Run_simple`, `-np 4` | BATS, `-np 12` |
+|---|---|---|
+| Biology | 0.209 h | 1.821 h |
+| Random walk | 1.857 h | 0.650 h |
+| Saving data | 0.534 h | 0.539 h |
+| Environmental interpolation | 0.131 h | 0.140 h |
+| Diffusion / detritus sinking | 0.001 h | 0.002 h |
+| **Total wall** | **2.73 h** | **3.15 h** |
+
+Total nitrogen was conserved to the printed precision (a single value,
+`431.6720`, across all 2190 days) in both runs, and each produced ~12 GB of
+output.
+
+Three things worth taking from this:
+
+**Rank scaling of the random walk is near-linear.** 1.857 h at 4 ranks to
+0.650 h at 12 is 95% of ideal. The missing 5% is the serial `MPI_SEND` loop at
+the top of `LAGRANGE`, in which the master sends the full particle arrays to
+each worker in turn — its cost grows with the rank count.
+
+**Biology costs 8.7x more for `Model_ID = 8` than for `Model_ID = 1`**
+(0.209 h against 1.821 h): three evolving traits with mutation, and 20
+zooplankton size classes rather than 1. Short test runs badly under-predict
+this — an earlier estimate from a few simulated days put it at ~5x.
+
+**The profile inverts between the two configurations.** In `Run_simple` the
+random walk is 68% of the runtime and scales with cores. In BATS it is 21%,
+while the serial part — biology, saving and interpolation, all of which run on
+the master rank — is 2.50 h of the 3.15 h total. Adding cores to a BATS run
+therefore buys very little, and 2.50 h is its floor.
+
+The only remaining target of any size is `BIOLOGY`, which is not parallelised.
+Distributing its per-particle loop the way `LAGRANGE` already distributes the
+random walk would be a structural change to the science code rather than a
+tweak, and is not attempted here.
 
 ### Verifying that results are unchanged
 
