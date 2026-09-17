@@ -65,6 +65,21 @@ def main():
     new_f = sys.argv[1] if len(sys.argv) > 1 else "Run_BATS/Euler.nc"
     ref_f = sys.argv[2] if len(sys.argv) > 2 else "Run/Euler.nc"
 
+    for path, what in ((new_f, "run to check"), (ref_f, "published reference")):
+        if not os.path.exists(path):
+            print(f"Cannot find the {what}: {path}\n", file=sys.stderr)
+            if path is new_f:
+                print("A run writes Euler.nc into its own run directory, so this file only\n"
+                      "exists on the machine the run was performed on. Either run this script\n"
+                      "there, or copy the file over -- Euler.nc is ~69 MB, far smaller than the\n"
+                      "~12 GB of particle output beside it:\n"
+                      "    scp <host>:<path>/Run_BATS/Euler.nc Run_BATS/\n", file=sys.stderr)
+            else:
+                print("Run/Euler.nc ships with the repository. If it is missing, restore it\n"
+                      "with:  git checkout -- Run/Euler.nc\n", file=sys.stderr)
+            print(f"Usage: {os.path.basename(__file__)} [new.nc] [reference.nc]", file=sys.stderr)
+            return 2
+
     a, b = nc.Dataset(new_f), nc.Dataset(ref_f)
     print("PIBM BATS run vs published reference")
     print(f"  new run   : {new_f}  ({a.dimensions['Time'].size} records)")
