@@ -252,7 +252,54 @@ identical `Euler.nc`, `ParY1.nc` and `PassY1.nc`, so `md5` on those files is a
 sound regression check. The optimisations above were confirmed identical this
 way against the unmodified upstream code.
 
-## 8. Discrepancy in the README
+## 8. Comparing a run against the published output
+
+`Run/` ships the authors' own BATS output: `Euler.nc` is a full six-year
+`Model_ID = 8` run (2192 records, `NZOO = 20`), with `Euler_5K.nc`,
+`Euler_10K.nc` and `Euler_50K.nc` the same experiment at other super-individual
+counts. This is the reference to compare a local run against, and the reason
+`Run/` is kept pristine and runs go in `Run_BATS/`.
+
+**A rerun is never bit-identical to the paper**, not even for the authors:
+`random_seed()` at `Main.f90:20` draws from OS entropy, and the initial trait
+assignment, the vertical random walk and mutation are all stochastic. Only two
+things can be checked, and `tools/compare_to_paper.py` separates them:
+
+```bash
+python3 -m venv ~/.venvs/pibm && ~/.venvs/pibm/bin/pip install netCDF4
+~/.venvs/pibm/bin/python tools/compare_to_paper.py Run_BATS/Euler.nc Run/Euler.nc
+```
+
+**Tier 1 -- prescribed forcing and grid** (`Z_r`, `Z_w`, `Temp`, `Kv`). These do
+not depend on the random draw and must reproduce to round-off. A mismatch means
+the configuration is wrong -- wrong namelist, wrong forcing files, or
+`NZOO != 20` -- rather than a different realisation. This is pass/fail.
+
+**Tier 2 -- biological fields and traits** (`NO3`, `CHL`, `NPP`, `PC`, `PN`,
+`DET`, `Topt_avg`, `CDiv_avg`, `Lnalpha_avg`). These differ between
+realisations and are not supposed to match. The useful yardstick is the spread
+among the authors' own published runs: comparing `Euler_5K.nc` against
+`Euler.nc` gives
+
+| | |
+|---|---|
+| Tier 1 fields | identical to round-off |
+| Final-year means | up to 16% apart (`PN` -15.9%, `CHL` -14.6%, `NO3` +1.0%) |
+| Seasonal cycle correlation | `r` = 0.92 (CHL), 0.99 (NPP), 1.00 (NO3) |
+
+So differences of a few percent to the mid-teens on final-year means are
+ordinary. The stronger evidence is the seasonal cycle: a high correlation with
+a similar amplitude means the run reproduces the published *behaviour*, which
+is what the paper's figures actually show.
+
+For the figures themselves, the MATLAB (`FIG*.m`) and R (`Fig4_BATS_obs_mod_knn.R`,
+`Fig10Size_spectra.R`, `Rao2D.R`) scripts in `Run/` regenerate the paper's
+panels, and the observational data they validate against (`bats_NO3.csv`,
+`bats_pigments.csv`, `BATS_Primary_Production.csv`, `*knn.csv`) is alongside
+them. Point those at your own `Euler.nc` and compare against the published
+figures.
+
+## 9. Discrepancy in the README
 
 `README.md` numbers the models differently from the code. `variables.f90` is
 authoritative:
@@ -267,7 +314,7 @@ authoritative:
 
 `Model_ID = 8` (`ToptSizeLight`) agrees in both, so the BATS run is unaffected.
 
-## 9. Verification performed
+## 10. Verification performed
 
 - Total nitrogen conserved exactly (431.6720 every day, both configurations).
 - Nitrate depleted at the surface, increasing with depth; Chl ≈ 0.15 mg m⁻³ —
