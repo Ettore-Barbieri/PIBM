@@ -277,20 +277,43 @@ the configuration is wrong -- wrong namelist, wrong forcing files, or
 
 **Tier 2 -- biological fields and traits** (`NO3`, `CHL`, `NPP`, `PC`, `PN`,
 `DET`, `Topt_avg`, `CDiv_avg`, `Lnalpha_avg`). These differ between
-realisations and are not supposed to match. The useful yardstick is the spread
-among the authors' own published runs: comparing `Euler_5K.nc` against
-`Euler.nc` gives
+realisations and are not supposed to match, so a bare percentage means nothing
+on its own. The script calibrates it: `Euler_5K.nc`, `Euler_10K.nc` and
+`Euler_50K.nc` are the authors' own runs of the same experiment, and their
+deviations from `Euler.nc` set the scale a local run should be judged on.
 
-| | |
-|---|---|
-| Tier 1 fields | identical to round-off |
-| Final-year means | up to 16% apart (`PN` -15.9%, `CHL` -14.6%, `NO3` +1.0%) |
-| Seasonal cycle correlation | `r` = 0.92 (CHL), 0.99 (NPP), 1.00 (NO3) |
+| field | 5K | 10K | 50K |
+|---|---|---|---|
+| NO3 | +1.0% | -0.3% | -1.6% |
+| CHL | -14.6% | -10.1% | -5.1% |
+| NPP | +3.1% | +7.5% | +13.7% |
+| PC | -12.7% | -8.3% | -3.2% |
+| PN | -15.9% | -11.7% | -6.8% |
+| DET | +1.5% | +5.8% | +11.8% |
+| `Topt_avg` | +0.8% | -0.9% | -0.5% |
+| `CDiv_avg` | +3.9% | +10.2% | +10.0% |
+| `Lnalpha_avg` | -6.2% | -2.8% | -1.4% |
+| **seasonal r (CHL)** | 0.915 | 0.890 | 0.906 |
+| **seasonal r (NPP)** | 0.992 | 0.993 | 0.989 |
+| **seasonal r (NO3)** | 0.998 | 0.998 | 0.998 |
 
-So differences of a few percent to the mid-teens on final-year means are
-ordinary. The stronger evidence is the seasonal cycle: a high correlation with
-a similar amplitude means the run reproduces the published *behaviour*, which
-is what the paper's figures actually show.
+Deviations up to ~16% on final-year means, and a CHL seasonal correlation as
+low as 0.89, therefore occur between runs the authors published themselves.
+The script reports whether each of your fields falls inside these spans.
+
+Two cautions when reading that table. Most fields vary *monotonically* from 5K
+to 50K, so much of this is a super-individual sampling effect rather than pure
+stochastic noise -- a 20K run should land mid-range. And the span comes from
+three runs, so treat a small excursion as a prompt to look closer, not a
+failure: check whether the affected fields move together in a physically
+coherent way (cell size, C:Chl and production co-vary across this table) or
+independently, which would be the signature of a real problem.
+
+The stronger evidence is the seasonal cycle: a high correlation with a similar
+amplitude means the run reproduces the published *behaviour*, which is what the
+paper's figures actually show. `Topt_avg` deserves particular attention -- it
+is an emergent property after six years of mutation and selection rather than
+an input, so agreement there is a meaningful check on the trait machinery.
 
 For the figures themselves, the MATLAB (`FIG*.m`) and R (`Fig4_BATS_obs_mod_knn.R`,
 `Fig10Size_spectra.R`, `Rao2D.R`) scripts in `Run/` regenerate the paper's
